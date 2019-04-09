@@ -13,6 +13,12 @@ import gzip
 import base64
 import getopt
 import binascii
+from os import path
+
+
+OUI_PATH = path.join(
+    path.dirname(path.abspath(__file__)),
+    'ouis.gz')
 
 
 def base64mac(mac):
@@ -34,15 +40,36 @@ def compress():
         print('|'.join([name,]+macs))
 
 
-def lookup(mac, db='ouis.gz'):
+def lookup(mac):
     bmac = base64mac(mac.upper().replace(':', '').replace('-', ''))
-    with gzip.open(db, mode='rt', encoding='latin') as fi:
+    with gzip.open(OUI_PATH, mode='rt', encoding='utf-8') as fi:
         for line in fi:
             name, *macs = line.strip().split('|')
             for m in macs:
                 if bmac.startswith(m):
                     return name
     return 'not found'
+
+
+class MacIndex(object):
+
+    def __init__(self):
+        self.idx = {}
+        with gzip.open(OUI_PATH, mode='rt', encoding='utf-8') as fi:
+            for line in fi:
+                name, *macs = line.strip().split('|')
+                for m in macs:
+                    self.idx.setdefault(m[:4], []).append((name, m[4:]))
+
+    def __getitem__(self, mac):
+        bmac = base64mac(mac.upper().replace(':', '').replace('-', ''))
+        idx, bmac = bmac[:4], bmac[4:]
+        l = self.idx.get(idx)
+        if not l:
+            return 'not found'
+        for name, off in l:
+            if bmac.startswith(off):
+                return name
 
 
 def main():
